@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Zealty Property Exporter",
+  "version": "1.3",
+  "description": "Exports Zealty properties directly to your Google Sheet.",
+  "permissions": ["activeTab", "tabs"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "host_permissions": [
+    "https://script.google.com/*",
+    "https://script.googleusercontent.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.zealty.ca/property/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

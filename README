@@ -1,0 +1,40 @@
+This is a brief system overview of the real estate scraping and export pipeline designed to run directly within your authentic browser session.
+
+---
+
+### Project Overview
+This project is a lightweight data pipeline that extracts structured real estate specifications from **Zealty.ca** property pages and appends them directly to an active **Google Sheet** in real time, shifting focus to the spreadsheet upon completion. 
+
+By operating as a browser extension inside your active, logged-in browser session, the tool naturally inherits your credentials and bypasses Cloudflare Turnstile/CAPTCHA gates without requiring headless automation or proxies.
+
+---
+
+### System Architecture
+
+The pipeline consists of two primary components:
+
+```
+[ Zealty Property Page ]
+       │
+       ▼ (User clicks "Export to Sheets")
+[ Content Script (content.js) ] ──(HTTP POST JSON)──► [ Google Apps Script Web App ]
+       │                                                         │
+       ▼ (chrome.runtime Message)                                ▼ (Appends data)
+[ Background Service Worker ] ──(Activates Tab)─────► [ Google Sheet (Sheet2 & all-params) ]
+```
+
+#### 1. Browser Extension (Frontend)
+Built using **Chrome Extensions Manifest V3**, this component operates inside the browser context:
+* **`manifest.json`**: Declares matching patterns for Zealty property URLs, permissions for tab-switching (`tabs`), and permissions to safely POST data to Google domain endpoints (`host_permissions`).
+* **`content.js`**: Injects an "Export to Sheets" button on target pages. Upon activation, it extracts page data via DOM queries across three scopes:
+  1. *Structured Data*: Standard metadata (price, beds, baths) parsed directly from the page's Schema.org `application/ld+json` script.
+  2. *Tabular Specs*: Raw building details, room configurations, and historical tax assessments isolated by targeting specific section headers (`h2`).
+  3. *Estimates*: Live monthly mortgage cost and monthly rent projections extracted from calculation widgets.
+  4. *Name Formatting Fallback*: Inspects the DOM for a `"Building Name"`. If not found, it parses and cleanses the main listing title to output a standardized street address placeholder (e.g., `"599 Dansey Avenue"`) for Column A.
+* **`background.js`**: A lightweight background service worker. When notified by the content script that an export was successful, it queries the browser for an open Google Sheets tab and pulls it into active focus.
+
+#### 2. Google Apps Script (Backend Bridge)
+A serverless endpoint bound directly to your Google Sheet and deployed as a **Web App**:
+* **`doPost(e)` entrypoint**: Parses the incoming JSON payload from the browser extension.
+* **Sheet 1 (`Sheet2`)**: Appends structured, high-priority property specs in a fixed-column format. It dynamically calculates and inserts a cell formula for `Monthly Cash Flow` based on the row's corresponding Rent and Cost columns.
+* **Sheet 2 (`all-params`)**: Serves as a dynamic, wide-table database of all extracted parameters. If the extension discovers a new page feature, the script automatically appends a new column header to the sheet, maps the key to the new column index, and inserts the record safely.
