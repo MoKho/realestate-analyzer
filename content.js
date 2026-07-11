@@ -171,19 +171,61 @@ function runExtraction() {
     data["Description"] = descriptionElement.innerText.trim();
   }
 
-  // 8. Extract Building Name from list items
+  // 8. Extract Building Name from list items (robust)
   let buildingName = "";
   const listItems = document.querySelectorAll("li");
-  listItems.forEach(li => {
-    if (li.textContent.includes("Building Name:")) {
-      buildingName = li.textContent.replace("Building Name:", "").trim();
+  for (const li of listItems) {
+    const text = li.textContent || "";
+    const m = text.match(/building\s*name\s*[:\-]\s*(.+)/i);
+    if (m && m[1]) {
+      buildingName = m[1].trim();
+      break;
     }
-  });
+  }
+
+  // Additional heuristics if not found in list items
+  if (!buildingName) {
+    // 1) Try a 'Show Building' link or strata link text
+    const showLink = document.querySelector('a[href*="/strata-"]');
+    if (showLink) {
+      // link text often contains building name
+      const txt = (showLink.textContent || '').trim();
+      if (txt && !txt.toLowerCase().includes('show building')) {
+        buildingName = txt;
+      } else {
+        // try to extract from href (last segment)
+        try {
+          const parts = new URL(showLink.href).pathname.split('-');
+          const candidate = parts.slice(0, parts.length - 3).join(' ');
+          if (candidate && candidate.length > 2) buildingName = decodeURIComponent(candidate.replace(/\+/g, ' ')).trim();
+        } catch (e) {}
+      }
+    }
+
+    // 2) Look for a heading near the Building Information section
+    if (!buildingName) {
+      const bi = Array.from(document.querySelectorAll('section')).find(s => s.id && s.id.toLowerCase().includes('building'));
+      if (bi) {
+        const possible = bi.querySelector('h3, h2, h1, li');
+        if (possible) {
+          const t = (possible.textContent || '').trim();
+          // ignore generic headings
+          if (t && !/building information/i.test(t)) {
+            // if text includes 'Building Name:' extract after colon
+            const m2 = t.match(/building\s*name\s*[:\-]\s*(.+)/i);
+            if (m2 && m2[1]) buildingName = m2[1].trim(); else buildingName = t;
+          }
+        }
+      }
+    }
+  }
 
   // Apply Property Name rules
   if (buildingName) {
-    // Rule A: Found exact Building Name
-    data["Listing Name"] = buildingName;
+    // Rule A: Found exact Building Name — populate multiple name keys for safety
+    data["Building Name"] = buildingName;
+    data["Listing Name"] = data["Listing Name"] || buildingName;
+    data["Property Name"] = data["Property Name"] || buildingName;
   } else {
     // Rule B: Fallback to cleaned street address if Building Name is missing
     let fallbackName = data["Listing Name"] || "";
@@ -194,9 +236,15 @@ function runExtraction() {
         // Remove unit prefix (e.g. "#212 ")
         addrPart = addrPart.replace(/^#\s*[0-9A-Za-z-]+\s+/, "");
         data["Listing Name"] = addrPart;
+        // also set Building/Property Name fallback
+        data["Building Name"] = data["Building Name"] || addrPart;
+        data["Property Name"] = data["Property Name"] || addrPart;
       }
     }
   }
+
+  // Debug: log payload before sending
+  console.log('Zealty export payload:', data);
 
   // Dispatch data to the Google Apps Script Web App
   fetch(WEB_APP_URL, {
