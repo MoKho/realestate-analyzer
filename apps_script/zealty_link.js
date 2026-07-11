@@ -15,12 +15,56 @@ function doPost(e) {
       ]);
     }
     
+    // --- Deduplication: check column B (MLS) in Sheet2 ---
+    var lastRow = sheet2.getLastRow();
+    var mlsToCheck = data["MLS"] || "";
+    // Normalize MLS: trim, uppercase, remove non-alphanumeric characters
+    mlsToCheck = String(mlsToCheck).trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (mlsToCheck) {
+      if (lastRow >= 2) {
+        var mlsRange = sheet2.getRange(2, 2, lastRow - 1, 1).getValues();
+        for (var i = 0; i < mlsRange.length; i++) {
+          var cellVal = (mlsRange[i][0] || "");
+          if (String(cellVal).trim().toUpperCase() == mlsToCheck) {
+            var foundRow = i + 2; // account for header
+            // Move the active cell to the found MLS cell and show a short-lived toast
+            try {
+              var targetRange = sheet2.getRange(foundRow, 2);
+              sheet2.activate();
+              sheet2.setActiveSelection(targetRange);
+              // Temporarily highlight the cell and show a toast for visibility
+              var originalBg = targetRange.getBackground();
+              targetRange.setBackground('#fff2a8');
+              ss.toast('MLS "' + mlsToCheck + '" already on sheet (row ' + foundRow + ').', 'Duplicate found', 10);
+              SpreadsheetApp.flush();
+              // Wait so the user can see the highlight/toast, then restore background
+              try {
+                Utilities.sleep(10000);
+                targetRange.setBackground(originalBg);
+              } catch (sleepErr) {
+                // ignore sleep/restore errors
+              }
+            } catch (e) {
+              // ignore UI errors when script isn't running with an active UI (e.g., webapp triggers)
+            }
+
+            return ContentService.createTextOutput(JSON.stringify({
+              "status": "exists",
+              "message": "MLS already exists on sheet",
+              "row": foundRow,
+              "mls": mlsToCheck
+            })).setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+      }
+    }
+
     var nextRow = sheet2.getLastRow() + 1;
     var cashFlowFormula = "=N" + nextRow + "-M" + nextRow;
-    
+
     var rowData = [
       data["Building Name"] || "",                 // Col A (Property Name)
-      data["MLS"] || "",                          // Col B (MLS®)
+      mlsToCheck || (data["MLS"] || ""),          // Col B (MLS®) - normalized
       data["Year Built"] || "",                   // Col C (Age / Year Built)
       data["Address"] || "",                      // Col D (Address)
       data["Bedrooms"] || "",                     // Col E (Beds)
@@ -72,13 +116,31 @@ function doPost(e) {
     });
     
     var mlsIndex = headers.indexOf("MLS");
-    if (mlsIndex !== -1 && !allParamsRow[mlsIndex]) {
-      allParamsRow[mlsIndex] = data["MLS"] || "";
+    if (mlsIndex !== -1) {
+      allParamsRow[mlsIndex] = mlsToCheck || (data["MLS"] || "");
+    }
+
+    // --- Avoid duplicate MLS in all-params as well (if a MLS column exists) ---
+    var appendAllParams = true;
+    if (mlsIndex !== -1 && mlsToCheck) {
+      var apLastRow = allParamsSheet.getLastRow();
+      if (apLastRow >= 2) {
+        var apRange = allParamsSheet.getRange(2, mlsIndex + 1, apLastRow - 1, 1).getValues();
+        for (var j = 0; j < apRange.length; j++) {
+          var apVal = (apRange[j][0] || "");
+          if (String(apVal).trim().toUpperCase() == mlsToCheck) {
+            appendAllParams = false;
+            break;
+          }
+        }
+      }
+    }
+
+    if (appendAllParams) {
+      allParamsSheet.appendRow(allParamsRow);
     }
     
-    allParamsSheet.appendRow(allParamsRow);
-    
-    return ContentService.createTextOutput(JSON.stringify({ "status": "success" }))
+    return ContentService.createTextOutput(JSON.stringify({ "status": "success", "row": nextRow, "mls": mlsToCheck }))
       .setMimeType(ContentService.MimeType.JSON);
       
   } catch (err) {
