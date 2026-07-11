@@ -61,9 +61,11 @@ function doPost(e) {
 
     var nextRow = sheet2.getLastRow() + 1;
     var cashFlowFormula = "=N" + nextRow + "-M" + nextRow;
+    // Robust building name: accept several possible keys from the incoming data
+    var buildingName = data["Building Name"] || data["Property Name"] || data["Listing Name"] || data["Building"] || data["buildingName"] || "";
 
     var rowData = [
-      data["Building Name"] || "",                 // Col A (Property Name)
+      buildingName,                                  // Col A (Property Name)
       mlsToCheck || (data["MLS"] || ""),          // Col B (MLS®) - normalized
       data["Year Built"] || "",                   // Col C (Age / Year Built)
       data["Address"] || "",                      // Col D (Address)
