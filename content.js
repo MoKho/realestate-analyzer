@@ -1,7 +1,8 @@
 // Paste your copied Google Web App URL here
 const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzK9d9wQHEEsrt9B4J5f_66V2h25qsu6yVJRfKfVayha1anFg26AuPxqr6gxfC_zdXqLQ/exec";
 
-setTimeout(injectExportButton, 2000);
+// Only inject the Export-to-Sheets button on Zealty pages
+if (/zealty\.ca/i.test(window.location.hostname)) setTimeout(injectExportButton, 2000);
 
 // --- MLS detection & "Open on Zealty" button for third-party listing sites ---
 const MLS_REGEX = /\bR\d{6,7}\b/gi;
@@ -63,7 +64,7 @@ function initMlsDetection() {
       right: '20px',
       zIndex: '999999',
       padding: '10px 14px',
-      backgroundColor: '#0ea5a4',
+      backgroundColor: '#f000c0',
       color: 'white',
       border: 'none',
       borderRadius: '22px',
