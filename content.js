@@ -3,6 +3,126 @@ const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzK9d9wQHEEsrt9B4J5
 
 setTimeout(injectExportButton, 2000);
 
+// --- MLS detection & "Open on Zealty" button for third-party listing sites ---
+const MLS_REGEX = /\bR\d{6,7}\b/gi;
+
+// Don't inject the 'Open on Zealty' button when already on Zealty
+if (!/zealty\.ca/i.test(window.location.hostname)) {
+  initMlsDetection();
+}
+
+function initMlsDetection() {
+  let lastFound = null;
+
+  function findMlsOnPage() {
+    try {
+      // 1) Quick scan of visible text
+      const bodyText = (document.body && document.body.innerText) ? document.body.innerText : '';
+      const m = bodyText.match(MLS_REGEX);
+      if (m && m.length) return m[0].toUpperCase();
+
+      // 2) Check meta tags
+      const metas = document.querySelectorAll('meta');
+      for (const meta of metas) {
+        const c = meta.content || '';
+        const mm = c.match(MLS_REGEX);
+        if (mm) return mm[0].toUpperCase();
+      }
+
+      // 3) Check common attribute names and ids
+      const attrSelectors = '[data-mls], [data-listing-id], [id*=mls], [class*=mls], [title*=mls]';
+      const candidates = document.querySelectorAll(attrSelectors);
+      for (const el of candidates) {
+        const txt = (el.getAttribute('data-mls') || el.getAttribute('data-listing-id') || el.id || el.className || el.textContent || '');
+        const mm = String(txt).match(MLS_REGEX);
+        if (mm) return mm[0].toUpperCase();
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  function injectZealtyButton(mls) {
+    if (!mls) return;
+    const existing = document.getElementById('zealty-open-btn');
+    if (existing) {
+      existing.dataset.mls = mls;
+      existing.querySelector('.zealty-mls') && (existing.querySelector('.zealty-mls').innerText = mls);
+      return;
+    }
+
+    const btn = document.createElement('button');
+    btn.id = 'zealty-open-btn';
+    btn.title = 'Open this property on Zealty';
+    btn.innerHTML = `Open on Zealty <span class="zealty-mls" style="font-weight:600;margin-left:6px">${mls}</span>`;
+
+    Object.assign(btn.style, {
+      position: 'fixed',
+      bottom: '20px',
+      right: '20px',
+      zIndex: '999999',
+      padding: '10px 14px',
+      backgroundColor: '#0ea5a4',
+      color: 'white',
+      border: 'none',
+      borderRadius: '22px',
+      cursor: 'pointer',
+      fontWeight: '700',
+      boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
+      fontSize: '13px',
+      fontFamily: 'system-ui, sans-serif'
+    });
+
+    btn.addEventListener('click', () => {
+      btn.disabled = true;
+      btn.innerText = 'Opening...';
+      chrome.runtime.sendMessage({ action: 'openZealty', mls });
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = `Open on Zealty <span class="zealty-mls" style="font-weight:600;margin-left:6px">${mls}</span>`;
+      }, 1500);
+    });
+
+    document.body.appendChild(btn);
+  }
+
+  function removeZealtyButton() {
+    const ex = document.getElementById('zealty-open-btn');
+    if (ex) ex.remove();
+  }
+
+  // Initial check
+  const first = findMlsOnPage();
+  if (first) {
+    lastFound = first;
+    injectZealtyButton(first);
+  }
+
+  // Observe DOM changes for dynamically loaded pages
+  const observer = new MutationObserver(debounce(() => {
+    const found = findMlsOnPage();
+    if (found && found !== lastFound) {
+      lastFound = found;
+      injectZealtyButton(found);
+    } else if (!found) {
+      lastFound = null;
+      removeZealtyButton();
+    }
+  }, 500));
+
+  observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+
+  // Small debounce helper
+  function debounce(fn, wait) {
+    let t = null;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, args), wait);
+    };
+  }
+}
+
 function injectExportButton() {
   if (document.getElementById("zealty-export-btn")) return;
 

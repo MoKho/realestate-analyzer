@@ -1,19 +1,32 @@
 {
   "manifest_version": 3,
   "name": "Zealty Property Exporter",
-  "version": "1.3",
+  "version": "1.4",
   "description": "Exports Zealty properties directly to your Google Sheet.",
-  "permissions": ["activeTab", "tabs"],
+  "permissions": ["activeTab", "tabs", "scripting"],
   "background": {
     "service_worker": "background.js"
   },
   "host_permissions": [
     "https://script.google.com/*",
-    "https://script.googleusercontent.com/*"
+    "https://script.googleusercontent.com/*",
+    "*://*.housesigma.com/*",
+    "*://*.housesigma.ca/*",
+    "*://*.rew.ca/*",
+    "*://*.realtor.ca/*",
+    "*://*.paragonrels.com/*",
+    "https://www.zealty.ca/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://www.zealty.ca/property/*"],
+      "matches": [
+        "https://www.zealty.ca/property/*",
+        "*://*.housesigma.com/*",
+        "*://*.housesigma.ca/*",
+        "*://*.rew.ca/*",
+        "*://*.realtor.ca/*",
+        "*://*.paragonrels.com/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_end"
     }
