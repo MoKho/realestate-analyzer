@@ -125,10 +125,28 @@ function doPost(e) {
       data["First Mortgage Payment"] || "",       // Col N (Est. Monthly Cost)
       data["OfferRent Estimate"] || "",           // Col O (Est. Monthly Rent)
       cashFlowFormula,                                // Col P (Monthly Cash Flow)
-      data["URL"] || ""                           // Col Q (Link/Notes)
+      data["Description"] || ""                    // Col Q (Description)
     ];
     
     sheet2.appendRow(rowData);
+    // If a URL was provided, make the Property Name (Col A) a hyperlink to it
+    var url = data["URL"] || "";
+    if (url) {
+      try {
+        var displayText = buildingName || data["Listing Name"] || "";
+        var rich = SpreadsheetApp.newRichTextValue().setText(displayText).setLinkUrl(url).build();
+        sheet2.getRange(nextRow, 1).setRichTextValue(rich);
+      } catch (linkErr) {
+        // Fallback: set a HYPERLINK formula if RichText linking fails
+        try {
+          var safeUrl = String(url).replace(/"/g, '""');
+          var safeText = String(buildingName || data["Listing Name"] || "").replace(/"/g, '""');
+          sheet2.getRange(nextRow, 1).setFormula('=HYPERLINK("' + safeUrl + '", "' + safeText + '")');
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
     
     // --- 2. Write to "all-params" ---
     var allParamsSheet = ss.getSheetByName("all-params");
