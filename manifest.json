@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Zealty Property Exporter",
-  "version": "1.4",
+  "version": "1.6.3",
   "description": "Exports Zealty properties directly to your Google Sheet.",
   "permissions": ["activeTab", "tabs", "scripting"],
   "background": {

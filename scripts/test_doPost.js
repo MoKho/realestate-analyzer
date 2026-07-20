@@ -52,10 +52,10 @@ console.log('  MLS raw:', JSON.stringify(mlsRaw));
 
 // Translate Apps Script dedupe+append logic to JS and run against an in-memory sheet
 const sheet2 = {
-  header: ["Property Name", "MLS®", "Age", "Address", "Beds", "Baths", "SqFt", "Price", "2026 Assessment", "Price/SqFt", "Maintenace", "Maintenace per SQFT", "Est. Monthly Cost", "Est. Monthly Rent", "Monthly Cash Flow", "Link/Notes"],
+  header: ["Property Name", "Neighbourhood", "MLS®", "Age", "Address", "Beds", "Baths", "SqFt", "Price", "2026 Assessment", "Price/SqFt", "Maintenace", "Maintenace per SQFT", "Est. Monthly Cost", "Est. Monthly Rent", "Monthly Cash Flow", "Link/Notes"],
   rows: [
-    // Example existing row to simulate dedupe (uncomment to test duplicate detection)
-    // ["Some Building", "R3065176", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
+    // Simulate an older export where MLS was in column B, before Neighbourhood was inserted.
+    ["Some Building", mlsRaw, "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]
   ]
 };
 
@@ -64,8 +64,8 @@ let duplicateFound = false;
 let foundRowIndex = -1;
 if (mlsToCheck) {
   for (let i = 0; i < sheet2.rows.length; i++) {
-    const cell = String(sheet2.rows[i][1] || '').trim().toUpperCase();
-    if (cell === mlsToCheck) {
+    const duplicateColumn = sheet2.rows[i].findIndex(cell => normalizeMLS(cell) === mlsToCheck);
+    if (duplicateColumn !== -1) {
       duplicateFound = true;
       foundRowIndex = i + 2; // account for header (1-based)
       break;
@@ -109,9 +109,9 @@ allParamsRow['MLS_normalized'] = mlsToCheck;
 console.log(allParamsRow);
 
 // Exit with non-zero if buildingName empty to surface failing capture
-if (!buildingName) {
+if (!buildingName || !duplicateFound) {
   console.error('\nERROR: Building name not found by heuristic.');
   process.exitCode = 2;
 } else {
-  console.log('\nOK: Building name captured.');
+  console.log('\nOK: Building name captured and duplicate detected.');
 }

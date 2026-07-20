@@ -292,16 +292,34 @@ function runExtraction() {
     data["Description"] = descriptionElement.innerText.trim();
   }
 
-  // 8. Extract Building Name from list items (robust)
+  // 8. Extract Building Name and Neighbourhood from the Building Information list
   let buildingName = "";
-  const listItems = document.querySelectorAll("li");
+  let neighbourhood = "";
+  const buildingInformation = document.getElementById("building-information");
+  const listItems = buildingInformation
+    ? buildingInformation.querySelectorAll("li")
+    : document.querySelectorAll("li");
   for (const li of listItems) {
     const text = li.textContent || "";
-    const m = text.match(/building\s*name\s*[:\-]\s*(.+)/i);
-    if (m && m[1]) {
-      buildingName = m[1].trim();
+    if (!buildingName) {
+      const buildingMatch = text.match(/building\s*name\s*[:\-]\s*(.+)/i);
+      if (buildingMatch && buildingMatch[1]) {
+        buildingName = buildingMatch[1].trim();
+      }
+    }
+    if (!neighbourhood) {
+      const neighbourhoodMatch = text.match(/neighbourhood\s*[:\-]\s*(.+)/i);
+      if (neighbourhoodMatch && neighbourhoodMatch[1]) {
+        neighbourhood = neighbourhoodMatch[1].trim();
+      }
+    }
+    if (buildingName && neighbourhood) {
       break;
     }
+  }
+
+  if (neighbourhood) {
+    data["Neighbourhood"] = neighbourhood;
   }
 
   // Additional heuristics if not found in list items
@@ -365,7 +383,7 @@ function runExtraction() {
   }
 
   // Debug: log payload before sending
-  console.log('Zealty export payload:', data);
+  console.log('Zealty export payload:', JSON.stringify(data));
 
   // Dispatch data to the Google Apps Script Web App
   fetch(WEB_APP_URL, {
@@ -379,8 +397,9 @@ function runExtraction() {
     btn.style.backgroundColor = "#f000c0";
     btn.disabled = false;
 
-    // Direct background worker to pull active Google Sheet tab into focus
-    chrome.runtime.sendMessage({ action: "switchToSheets" });
+    // The export is complete. Do not message the background worker here:
+    // content scripts can outlive an extension reload, making chrome.runtime
+    // unavailable and incorrectly showing a post-export failure.
   })
   .catch(err => {
     console.error("Export failed: ", err);
